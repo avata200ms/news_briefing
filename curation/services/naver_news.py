@@ -1,22 +1,23 @@
-"""네이버 뉴스 검색 Open API 연동 서비스 모듈"""
+"""네이버 뉴스 검색 API 연동 서비스 모듈 (NCP NAVER API HUB 및 레거시 Developers API 동시 지원)"""
 
 import email.utils
 import html
 import os
+from pathlib import Path
 import re
 from typing import Any
-
 import requests
 from django.conf import settings
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 def clean_html(raw_html: str) -> str:
     """HTML 태그 제거 및 특수문자 디코딩"""
     if not raw_html:
         return ""
-    # HTML 태그 제거 (<b>, </b> 등)
     clean_text = re.sub(r"<[^>]+>", "", raw_html)
-    # HTML 엔티티 디코딩 (&quot;, &amp;, &lt;, &gt; 등)
     clean_text = html.unescape(clean_text)
     return clean_text.strip()
 
@@ -32,24 +33,40 @@ def format_pubdate(pubdate_str: str) -> str:
         return pubdate_str
 
 
+def get_naver_credentials() -> tuple[str, str]:
+    """최신 .env 파일에서 네이버 인증키 로드"""
+    load_dotenv(BASE_DIR / ".env", override=True)
+    client_id = (
+        os.getenv("NAVER_CLIENT_ID", "")
+        or getattr(settings, "NAVER_CLIENT_ID", "")
+    ).strip()
+    client_secret = (
+        os.getenv("NAVER_CLIENT_SECRET", "")
+        or getattr(settings, "NAVER_CLIENT_SECRET", "")
+    ).strip()
+    return client_id, client_secret
+
+
 def search_naver_news(
     query: str,
     display: int = 20,
     sort: str = "sim"
 ) -> list[dict[str, Any]]:
     """
-    네이버 뉴스 검색 API를 호출하여 정제된 기사 목록 20개를 반환합니다.
+    네이버 뉴스 검색 API를 호출하여 정제된 기사 목록을 반환합니다.
+    1) 네이버 클라우드 플랫폼(NCP) NAVER API HUB (https://naverapihub.apigw.ntruss.com/search/v1/news)
+    2) 네이버 개발자 센터 레거시 (https://openapi.naver.com/v1/search/news.json)
+    두 가지 엔드포인트를 순차 시도합니다.
 
     Args:
-        query (str): 검색할 키워드
+        query (str): 검색 키워드
         display (int): 검색 건수 (기본값: 20)
         sort (str): 정렬 방식 ('sim': 정확도순, 'date': 최신순)
 
     Returns:
         list[dict[str, Any]]: 정제된 기사 데이터 리스트
     """
-    client_id = getattr(settings, "NAVER_CLIENT_ID", "") or os.getenv("NAVER_CLIENT_ID", "")
-    client_secret = getattr(settings, "NAVER_CLIENT_SECRET", "") or os.getenv("NAVER_CLIENT_SECRET", "")
+    client_id, client_secret = get_naver_credentials()
 
     if not client_id or not client_secret:
         raise ValueError(
@@ -59,12 +76,6 @@ def search_naver_news(
     if not query or not query.strip():
         raise ValueError("검색 키워드를 입력해주세요.")
 
-    url = "https://openapi.naver.com/v1/search/news.json"
-    headers = {
-        "X-Naver-Client-Id": client_id.strip(),
-        "X-Naver-Client-Secret": client_secret.strip(),
-        "User-Agent": "NewsBriefingApp/1.0",
-    }
     params = {
         "query": query.strip(),
         "display": min(max(display, 1), 100),
@@ -72,35 +83,63 @@ def search_naver_news(
         "sort": sort,
     }
 
-    try:
-        response = requests.get(url, headers=headers, params=params, timeout=10)
-        
-        if response.status_code == 401 or response.status_code == 403:
-            raise ValueError("네이버 API 인증에 실패했습니다. Client ID 및 Client Secret을 확인해주세요.")
-        elif response.status_code != 200:
-            raise RuntimeError(f"네이버 검색 API 호출 실패 (HTTP {response.status_code}): {response.text}")
+    # 시도할 엔드포인트 및 헤더 목록
+    endpoints = [
+        # 1. 네이버 클라우드 플랫폼(NCP) NAVER API HUB
+        {
+            "name": "NAVER Cloud Platform (NAVER API HUB)",
+            "url": "https://naverapihub.apigw.ntruss.com/search/v1/news",
+            "headers": {
+                "X-NCP-APIGW-API-KEY-ID": client_id,
+                "X-NCP-APIGW-API-KEY": client_secret,
+                "User-Agent": "NewsBriefingApp/1.0",
+            },
+        },
+        # 2. 네이버 개발자 센터 (Developers Open API)
+        {
+            "name": "Naver Developers Open API",
+            "url": "https://openapi.naver.com/v1/search/news.json",
+            "headers": {
+                "X-Naver-Client-Id": client_id,
+                "X-Naver-Client-Secret": client_secret,
+                "User-Agent": "NewsBriefingApp/1.0",
+            },
+        },
+    ]
 
-        data = response.json()
-        raw_items = data.get("items", [])
+    last_error = ""
 
-        articles = []
-        for idx, item in enumerate(raw_items, start=1):
-            title = clean_html(item.get("title", ""))
-            description = clean_html(item.get("description", ""))
-            link = item.get("originallink") or item.get("link", "")
-            naver_link = item.get("link", "")
-            pub_date = format_pubdate(item.get("pubDate", ""))
+    for ep in endpoints:
+        try:
+            response = requests.get(ep["url"], headers=ep["headers"], params=params, timeout=10)
 
-            articles.append({
-                "id": idx,
-                "title": title,
-                "description": description,
-                "url": link,
-                "naver_url": naver_link,
-                "pub_date": pub_date,
-            })
+            if response.status_code == 200:
+                data = response.json()
+                raw_items = data.get("items", [])
 
-        return articles
+                articles = []
+                for idx, item in enumerate(raw_items, start=1):
+                    title = clean_html(item.get("title", ""))
+                    description = clean_html(item.get("description", ""))
+                    link = item.get("originallink") or item.get("link", "")
+                    naver_link = item.get("link", "")
+                    pub_date = format_pubdate(item.get("pubDate", ""))
 
-    except requests.exceptions.RequestException as e:
-        raise RuntimeError(f"네이버 API 네트워크 요청 중 오류가 발생했습니다: {e}")
+                    articles.append({
+                        "id": idx,
+                        "title": title,
+                        "description": description,
+                        "url": link,
+                        "naver_url": naver_link,
+                        "pub_date": pub_date,
+                    })
+
+                return articles
+            else:
+                last_error = f"{ep['name']} 실패 (HTTP {response.status_code}): {response.text}"
+
+        except requests.exceptions.RequestException as req_err:
+            last_error = f"{ep['name']} 연결 오류: {req_err}"
+
+    # 모든 엔드포인트 실패 시
+    raise RuntimeError(f"네이버 뉴스 API 호출에 실패했습니다.\n상세: {last_error}")

@@ -2,11 +2,23 @@
 
 import json
 import os
+from pathlib import Path
 from typing import Any
-
 from django.conf import settings
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+
+def get_gemini_api_key() -> str:
+    """최신 .env 파일에서 Gemini API 키 로드"""
+    load_dotenv(BASE_DIR / ".env", override=True)
+    return (
+        os.getenv("GEMINI_API_KEY", "")
+        or getattr(settings, "GEMINI_API_KEY", "")
+    ).strip()
 
 
 def curate_and_summarize_news(
@@ -17,30 +29,8 @@ def curate_and_summarize_news(
     """
     네이버 뉴스 기사 목록(20개) 중에서 사용자의 필터링 프롬프트에 가장 적합한
     기사 3개를 선정하고, 각 기사에 대한 핵심 요약 및 인사이트를 생성합니다.
-
-    Args:
-        articles (list[dict[str, Any]]): 네이버 검색으로 수집된 20개 기사 리스트
-        filtering_prompt (str): 사용자가 지정한 필터링 기준 프롬프트
-        keyword (str): 원래 검색 키워드
-
-    Returns:
-        dict[str, Any]: {
-            "curated_articles": [
-                {
-                    "original_id": 1,
-                    "title": "...",
-                    "url": "...",
-                    "pub_date": "...",
-                    "selection_reason": "선정 이유",
-                    "summary_bullets": ["요약1", "요약2", "요약3"],
-                    "insight": "비즈니스 시사점 및 인사이트",
-                    "tags": ["태그1", "태그2", "태그3"]
-                }, ...
-            ],
-            "overview_comment": "이번 뉴스 큐레이션 총평"
-        }
     """
-    api_key = getattr(settings, "GEMINI_API_KEY", "") or os.getenv("GEMINI_API_KEY", "")
+    api_key = get_gemini_api_key()
     if not api_key:
         raise ValueError("Google Gemini API 키가 설정되지 않았습니다. .env 파일에 GEMINI_API_KEY를 설정해주세요.")
 
@@ -96,43 +86,50 @@ def curate_and_summarize_news(
 }}
 """
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.2,
-            ),
-        )
+    models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+    last_err = None
 
-        response_text = response.text.strip()
-        parsed_data = json.loads(response_text)
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.2,
+                ),
+            )
 
-        # 원본 기사 메타데이터(URL, 제목, 발행일 등)와 AI 요약 데이터 매핑
-        article_map = {art["id"]: art for art in articles}
-        curated_list = []
+            response_text = response.text.strip()
+            parsed_data = json.loads(response_text)
 
-        for item in parsed_data.get("curated_articles", []):
-            orig_id = item.get("original_id")
-            orig_art = article_map.get(orig_id, {})
+            # 원본 기사 메타데이터 매핑
+            article_map = {art["id"]: art for art in articles}
+            curated_list = []
 
-            curated_list.append({
-                "original_id": orig_id,
-                "title": orig_art.get("title", f"기사 #{orig_id}"),
-                "url": orig_art.get("url", ""),
-                "naver_url": orig_art.get("naver_url", ""),
-                "pub_date": orig_art.get("pub_date", ""),
-                "selection_reason": item.get("selection_reason", ""),
-                "summary_bullets": item.get("summary_bullets", []),
-                "insight": item.get("insight", ""),
-                "tags": item.get("tags", []),
-            })
+            for item in parsed_data.get("curated_articles", []):
+                orig_id = item.get("original_id")
+                orig_art = article_map.get(orig_id, {})
 
-        return {
-            "overview_comment": parsed_data.get("overview_comment", "AI가 엄선한 3대 핵심 뉴스 브리핑입니다."),
-            "curated_articles": curated_list,
-        }
+                curated_list.append({
+                    "original_id": orig_id,
+                    "title": orig_art.get("title", f"기사 #{orig_id}"),
+                    "url": orig_art.get("url", ""),
+                    "naver_url": orig_art.get("naver_url", ""),
+                    "pub_date": orig_art.get("pub_date", ""),
+                    "selection_reason": item.get("selection_reason", ""),
+                    "summary_bullets": item.get("summary_bullets", []),
+                    "insight": item.get("insight", ""),
+                    "tags": item.get("tags", []),
+                })
 
-    except Exception as e:
-        raise RuntimeError(f"Gemini API 기사 큐레이션 및 요약 생성 중 오류 발생: {e}") from e
+            return {
+                "overview_comment": parsed_data.get("overview_comment", "AI가 엄선한 3대 핵심 뉴스 브리핑입니다."),
+                "curated_articles": curated_list,
+            }
+
+        except Exception as e:
+            last_err = e
+            continue
+
+    raise RuntimeError(f"Gemini API 기사 큐레이션 및 요약 생성 중 오류 발생: {last_err}") from last_err
