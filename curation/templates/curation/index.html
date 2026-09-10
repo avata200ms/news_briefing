@@ -1,0 +1,219 @@
+{% extends 'curation/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="content-wrapper">
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="hero-header">
+            <span class="badge-hero">
+                <i data-lucide="zap"></i> 실시간 20개 검색 ➔ AI 최적 3선 큐레이션
+            </span>
+            <h2 class="hero-title">원하는 뉴스만 쏙 골라주는<br><span class="gradient-text">AI 맞춤 뉴스 브리핑</span></h2>
+            <p class="hero-desc">네이버 뉴스에서 최신 20건을 수집하고, <strong>Google Gemini AI</strong>가 당신의 기준에 맞춰 <strong>가장 가치 있는 3개 기사만 선별·심층 요약</strong>해 드립니다.</p>
+        </div>
+
+        <!-- Input Form Card -->
+        <div class="form-card glass-card">
+            <form id="curation-form">
+                {% csrf_token %}
+                <div class="form-grid">
+                    <!-- Keyword Input -->
+                    <div class="form-group">
+                        <label for="keyword-input" class="form-label">
+                            <i data-lucide="search"></i> 1. 검색 키워드
+                        </label>
+                        <div class="input-wrapper">
+                            <input 
+                                type="text" 
+                                id="keyword-input" 
+                                name="keyword" 
+                                class="form-control" 
+                                placeholder="예: 생성형 AI 비즈니스, 전기차 배터리, 양자컴퓨팅..." 
+                                required
+                                autocomplete="off"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Sort Option -->
+                    <div class="form-group sort-group">
+                        <label class="form-label">
+                            <i data-lucide="sliders-horizontal"></i> 정렬 기준
+                        </label>
+                        <div class="radio-toggle-group">
+                            <label class="radio-toggle-btn active">
+                                <input type="radio" name="sort" value="sim" checked>
+                                <span>정확도순</span>
+                            </label>
+                            <label class="radio-toggle-btn">
+                                <input type="radio" name="sort" value="date">
+                                <span>최신순</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtering Prompt Input -->
+                <div class="form-group mt-4">
+                    <div class="label-row">
+                        <label for="filter-prompt-input" class="form-label">
+                            <i data-lucide="filter"></i> 2. AI 필터링 프롬프트 (선별 기준)
+                        </label>
+                        <span class="label-hint">AI가 20개 중 3개를 고를 때 적용할 기준</span>
+                    </div>
+                    <div class="textarea-wrapper">
+                        <textarea 
+                            id="filter-prompt-input" 
+                            name="filter_prompt" 
+                            class="form-control textarea-control" 
+                            rows="3" 
+                            placeholder="예: 단순 가십이나 홍보성 기사는 제외하고, 실제 기업 도입 사례나 구체적인 수익화 모델/지표가 포함된 기사만 3개 골라줘." 
+                            required
+                        ></textarea>
+                    </div>
+                </div>
+
+                <!-- Filter Presets -->
+                <div class="preset-section">
+                    <span class="preset-label"><i data-lucide="sparkle"></i> 빠른 프리셋 추천:</span>
+                    <div class="preset-chips">
+                        <button type="button" class="preset-chip" data-filter="단순 홍보성 기사는 제외하고, 실제 기업 도입 사례나 구체적인 매출/수익화 모델이 포함된 기사 위주로 3개 골라줘.">
+                            💰 비즈니스 & 수익화
+                        </button>
+                        <button type="button" class="preset-chip" data-filter="글로벌 규제 동향, 법안 통과, 정부 정책 및 보안/저작권 이슈와 관련된 핵심 기사만 3개 골라줘.">
+                            🌐 규제 & 정책 변화
+                        </button>
+                        <button type="button" class="preset-chip" data-filter="새로운 기술 돌파구, 벤치마크 신기록, 오픈소스 공개 및 기술 혁신 내용 중심 기사 3개 골라줘.">
+                            💡 기술 혁신 & 돌파구
+                        </button>
+                        <button type="button" class="preset-chip" data-filter="대규모 투자 유치, 유니콘 도약, M&A 및 스타트업 생태계 소식 위주로 3개 골라줘.">
+                            📈 투자 & 스타트업
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="form-actions">
+                    <button type="submit" id="submit-btn" class="btn-primary-action">
+                        <span class="btn-text">
+                            <i data-lucide="cpu"></i> AI 뉴스 큐레이션 실행 (20개 검색 ➔ 3선 요약)
+                        </span>
+                        <span class="btn-spinner hidden">
+                            <div class="spinner"></div> 분석 진행 중...
+                        </span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <!-- Loading State View -->
+    <section id="loading-section" class="loading-section hidden">
+        <div class="loading-card glass-card">
+            <div class="loading-pulse-animation">
+                <div class="pulse-circle"></div>
+                <i data-lucide="bot" class="loading-bot-icon"></i>
+            </div>
+            <h3 id="loading-step-title" class="loading-step-title">네이버 뉴스 실시간 수집 중...</h3>
+            <p id="loading-step-desc" class="loading-step-desc">키워드로 검색된 최신 기사 20건을 파싱하고 있습니다.</p>
+            
+            <div class="stepper-progress">
+                <div class="step-item active" id="step-1">
+                    <div class="step-num">1</div>
+                    <div class="step-label">네이버 20건 수집</div>
+                </div>
+                <div class="step-line" id="step-line-1"></div>
+                <div class="step-item" id="step-2">
+                    <div class="step-num">2</div>
+                    <div class="step-label">AI 3건 선별</div>
+                </div>
+                <div class="step-line" id="step-line-2"></div>
+                <div class="step-item" id="step-3">
+                    <div class="step-num">3</div>
+                    <div class="step-label">심층 요약 & 인사이트</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Error Alert View -->
+    <div id="error-box" class="alert-box error-alert hidden">
+        <div class="alert-icon"><i data-lucide="alert-circle"></i></div>
+        <div class="alert-content">
+            <h4 class="alert-title">오류가 발생했습니다</h4>
+            <p id="error-message" class="alert-text"></p>
+        </div>
+        <button type="button" class="alert-close-btn" id="close-error-btn">
+            <i data-lucide="x"></i>
+        </button>
+    </div>
+
+    <!-- Results Section -->
+    <section id="results-section" class="results-section hidden">
+        <!-- Overview Banner -->
+        <div class="overview-banner glass-card">
+            <div class="overview-header">
+                <div class="overview-badge">
+                    <i data-lucide="check-check"></i> AI Curation Complete
+                </div>
+                <div class="overview-meta">
+                    <span id="result-keyword-tag" class="meta-tag"></span>
+                    <span id="result-count-tag" class="meta-tag"></span>
+                </div>
+            </div>
+            <h3 class="overview-title" id="overview-comment-text"></h3>
+            <div class="overview-actions">
+                <button type="button" class="btn-copy" id="copy-markdown-btn">
+                    <i data-lucide="copy"></i> 마크다운 복사
+                </button>
+                <button type="button" class="btn-copy" id="copy-text-btn">
+                    <i data-lucide="file-text"></i> 뉴스레터 텍스트 복사
+                </button>
+            </div>
+        </div>
+
+        <!-- Curated 3 Articles Section -->
+        <div class="curated-section-header">
+            <div class="section-title-wrap">
+                <span class="section-badge">TOP 3 PICKS</span>
+                <h3 class="section-title">AI가 엄선한 3대 핵심 뉴스 & 요약</h3>
+            </div>
+            <p class="section-desc">입력하신 필터링 기준에 가장 완벽하게 부합하는 3개 기사입니다.</p>
+        </div>
+
+        <div id="curated-cards-grid" class="curated-cards-grid">
+            <!-- JavaScript를 통해 3개 카드 동적 렌더링 -->
+        </div>
+
+        <!-- Raw 20 Articles Accordion -->
+        <div class="raw-articles-container glass-card">
+            <button type="button" class="accordion-toggle-btn" id="toggle-raw-btn">
+                <div class="accordion-title">
+                    <i data-lucide="list"></i> 
+                    <span>검색된 전체 20건 원본 기사 목록 보기</span>
+                </div>
+                <i data-lucide="chevron-down" class="accordion-arrow"></i>
+            </button>
+            
+            <div id="raw-articles-collapse" class="accordion-content hidden">
+                <div class="raw-articles-table-wrap">
+                    <table class="raw-articles-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>기사 제목</th>
+                                <th>발행 일시</th>
+                                <th>원문 링크</th>
+                            </tr>
+                        </thead>
+                        <tbody id="raw-articles-tbody">
+                            <!-- JS 동적 생성 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}

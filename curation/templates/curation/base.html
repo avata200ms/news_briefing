@@ -1,0 +1,73 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="네이버 뉴스 20건을 수집하여 Gemini AI가 최적 기사 3건을 엄선하고 핵심 요약과 비즈니스 인사이트를 제공하는 지능형 뉴스 큐레이션 서비스">
+    <title>{% block title %}AI 뉴스 큐레이션 | News Briefing AI{% endblock %}</title>
+    
+    <!-- Google Fonts & Pretendard -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'curation/css/style.css' %}">
+</head>
+<body>
+    <div class="background-decorations" aria-hidden="true">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <!-- Header Navigation -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="brand-logo">
+                <div class="logo-icon">
+                    <i data-lucide="sparkles"></i>
+                </div>
+                <div class="brand-text">
+                    <h1>News Briefing <span class="ai-badge">AI</span></h1>
+                    <p class="brand-subtitle">지능형 뉴스 큐레이션 & 브리핑</p>
+                </div>
+            </div>
+            <div class="header-badges">
+                <span class="tech-pill naver-pill">
+                    <span class="status-dot"></span> Naver News Search
+                </span>
+                <span class="tech-pill gemini-pill">
+                    <span class="status-dot green"></span> Gemini 2.5 Flash
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="main-layout">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="footer-container">
+            <p>© 2026 News Briefing AI. Powered by <strong>Django 6</strong>, <strong>Naver Developers API</strong> & <strong>Google Gemini API</strong>.</p>
+        </div>
+    </footer>
+
+    <!-- Notification Toast -->
+    <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+    <!-- Custom JS -->
+    <script src="{% static 'curation/js/main.js' %}"></script>
+    <script>
+        // Lucide Icons 초기화
+        lucide.createIcons();
+    </script>
+</body>
+</html>
