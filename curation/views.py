@@ -5,7 +5,7 @@ import json
 from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods, require_POST
 
 from .models import SavedArticleSummary, SavedBriefing
@@ -19,6 +19,7 @@ def index(request):
     return render(request, "curation/index.html")
 
 
+@csrf_exempt
 @require_POST
 def curate_api(request):
     """
@@ -86,6 +87,7 @@ def curate_api(request):
         )
 
 
+@csrf_exempt
 @require_POST
 def save_briefing_api(request):
     """
@@ -189,6 +191,7 @@ def history_view(request):
     )
 
 
+@csrf_exempt
 @require_POST
 def delete_briefing_api(request, pk):
     """저장된 브리핑 및 연관 기사 요약 삭제 API"""

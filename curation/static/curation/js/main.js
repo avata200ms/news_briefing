@@ -187,13 +187,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 }),
             });
 
-            const data = await response.json();
-
             stopLoadingStepper();
             loadingSection.classList.add("hidden");
             submitBtn.disabled = false;
             btnText.classList.remove("hidden");
             btnSpinner.classList.add("hidden");
+
+            const contentType = response.headers.get("content-type") || "";
+            let data;
+            if (contentType.includes("application/json")) {
+                data = await response.json();
+            } else {
+                const text = await response.text();
+                showError(`서버 응답 오류 (HTTP ${response.status}): 올바른 JSON 데이터가 아닙니다. 환경 변수(API 키 등)를 확인해주세요.`);
+                return;
+            }
 
             if (!data.success) {
                 showError(data.error || "뉴스 큐레이션 중 문제가 발생했습니다.");
@@ -351,7 +359,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     }),
                 });
 
-                const data = await response.json();
+                const contentType = response.headers.get("content-type") || "";
+                let data;
+                if (contentType.includes("application/json")) {
+                    data = await response.json();
+                } else {
+                    showToast(`저장 오류 (HTTP ${response.status}): 올바른 응답이 아닙니다.`, true);
+                    saveBriefingBtn.disabled = false;
+                    saveBriefingBtn.innerHTML = `<i data-lucide="bookmark-plus"></i> <span class="save-btn-text">결과 저장하기</span>`;
+                    lucide.createIcons();
+                    return;
+                }
 
                 if (data.success) {
                     saveBriefingBtn.classList.add("saved");
