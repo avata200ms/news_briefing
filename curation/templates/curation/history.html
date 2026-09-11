@@ -1,0 +1,182 @@
+{% extends 'curation/base.html' %}
+{% load static %}
+
+{% block title %}나의 요약 히스토리 | News Briefing AI{% endblock %}
+
+{% block content %}
+<div class="content-wrapper history-wrapper">
+    <!-- History Header -->
+    <section class="history-hero">
+        <div class="history-hero-header">
+            <div class="hero-tag-row">
+                <span class="badge-hero">
+                    <i data-lucide="archive"></i> 저장된 뉴스 아카이브
+                </span>
+                <span class="badge-count">
+                    총 <strong>{{ total_count }}</strong>건의 브리핑
+                </span>
+            </div>
+            <h2 class="hero-title">나의 AI 맞춤 <span class="gradient-text">요약 히스토리</span></h2>
+            <p class="hero-desc">지금까지 생성하고 저장한 AI 뉴스 선별 요약 및 비즈니스 인사이트 기록을 확인하세요.</p>
+        </div>
+
+        <!-- Search Bar & Controls -->
+        <div class="history-filter-bar glass-card">
+            <form method="GET" action="{% url 'curation:history' %}" class="history-search-form">
+                <div class="search-input-wrap">
+                    <i data-lucide="search" class="search-icon"></i>
+                    <input 
+                        type="text" 
+                        name="q" 
+                        value="{{ query }}" 
+                        placeholder="키워드로 저장된 브리핑 검색..." 
+                        class="history-search-input"
+                        autocomplete="off"
+                    >
+                    {% if query %}
+                    <a href="{% url 'curation:history' %}" class="clear-search-btn" title="검색어 초기화">
+                        <i data-lucide="x"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                <button type="submit" class="btn-search-submit">
+                    <span>검색</span>
+                </button>
+            </form>
+            <div class="history-actions-right">
+                <a href="{% url 'curation:index' %}" class="btn-new-briefing">
+                    <i data-lucide="plus-circle"></i> 새 브리핑 생성
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- History List Section -->
+    <section class="history-list-section">
+        {% if briefings %}
+            <div class="briefings-timeline">
+                {% for b in briefings %}
+                <div class="briefing-history-card glass-card" id="briefing-card-{{ b.id }}" data-briefing-id="{{ b.id }}">
+                    <!-- Card Header -->
+                    <div class="bcard-header">
+                        <div class="bcard-meta-left">
+                            <span class="bcard-keyword">
+                                <i data-lucide="tag"></i> {{ b.keyword }}
+                            </span>
+                            <span class="bcard-date">
+                                <i data-lucide="clock"></i> {{ b.created_at|date:"Y-m-d H:i" }}
+                            </span>
+                            <span class="bcard-count-badge">
+                                {{ b.articles.count }}개 기사 선별
+                            </span>
+                        </div>
+                        <div class="bcard-actions-right">
+                            <button type="button" class="btn-card-action copy-briefing-md-btn" data-id="{{ b.id }}" title="마크다운 복사">
+                                <i data-lucide="copy"></i>
+                                <span>마크다운 복사</span>
+                            </button>
+                            <button type="button" class="btn-card-action btn-delete-briefing" data-id="{{ b.id }}" data-keyword="{{ b.keyword }}" title="기록 삭제">
+                                <i data-lucide="trash-2"></i>
+                                <span>삭제</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Filter Prompt Info Box -->
+                    <div class="bcard-filter-box">
+                        <span class="bcard-filter-label"><i data-lucide="filter"></i> 적용된 선별 기준:</span>
+                        <p class="bcard-filter-text">{{ b.filter_prompt }}</p>
+                    </div>
+
+                    <!-- Overview Comment -->
+                    <div class="bcard-overview-box">
+                        <div class="overview-quote-icon"><i data-lucide="quote"></i></div>
+                        <p class="bcard-overview-text">"{{ b.overview_comment }}"</p>
+                    </div>
+
+                    <!-- Articles Grid -->
+                    <div class="bcard-articles-grid">
+                        {% for art in b.articles.all %}
+                        <div class="history-article-card">
+                            <div class="h-card-header">
+                                <div class="h-card-rank">
+                                    <i data-lucide="award"></i> AI PICK #{{ forloop.counter }}
+                                </div>
+                                {% if art.pub_date %}
+                                <span class="h-card-date">{{ art.pub_date }}</span>
+                                {% endif %}
+                            </div>
+
+                            <h4 class="h-card-title">
+                                <a href="{{ art.url }}" target="_blank" rel="noopener noreferrer">
+                                    {{ art.title }}
+                                </a>
+                            </h4>
+
+                            <!-- Reason -->
+                            <div class="h-reason-box">
+                                <span class="h-box-label"><i data-lucide="check-circle-2"></i> 선정 이유</span>
+                                <p class="h-box-text">{{ art.selection_reason }}</p>
+                            </div>
+
+                            <!-- Summary 3 Bullets -->
+                            <div class="h-bullets-box">
+                                <span class="h-box-label"><i data-lucide="align-left"></i> 핵심 요약 3줄</span>
+                                <ul class="h-bullets-list">
+                                    {% for bullet in art.summary_bullets %}
+                                    <li>{{ bullet }}</li>
+                                    {% empty %}
+                                    <li>{{ art.summary_text }}</li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+
+                            <!-- Insight -->
+                            <div class="h-insight-box">
+                                <span class="h-box-label"><i data-lucide="lightbulb"></i> 비즈니스 인사이트</span>
+                                <p class="h-insight-text">{{ art.insight }}</p>
+                            </div>
+
+                            <!-- Footer Link & Tags -->
+                            <div class="h-card-footer">
+                                <div class="h-tags">
+                                    {% for tag in art.tags %}
+                                    <span class="h-tag">#{{ tag }}</span>
+                                    {% endfor %}
+                                </div>
+                                <a href="{{ art.url }}" target="_blank" rel="noopener noreferrer" class="h-link-btn">
+                                    <span>원문 읽기</span>
+                                    <i data-lucide="external-link"></i>
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <!-- Empty State -->
+            <div class="history-empty-card glass-card">
+                <div class="empty-icon-wrap">
+                    <i data-lucide="folder-search" class="empty-icon"></i>
+                </div>
+                {% if query %}
+                    <h3 class="empty-title">'{{ query }}'에 대한 저장 내역이 없습니다</h3>
+                    <p class="empty-desc">다른 검색어로 검색해 보시거나, 전체 목록을 확인해 보세요.</p>
+                    <a href="{% url 'curation:history' %}" class="btn-primary-action" style="max-width: 200px; margin: 1.5rem auto 0;">
+                        <span>전체 히스토리 보기</span>
+                    </a>
+                {% else %}
+                    <h3 class="empty-title">아직 저장된 뉴스 브리핑이 없습니다</h3>
+                    <p class="empty-desc">관심 키워드로 AI 뉴스 큐레이션을 실행한 후 <strong>[결과 저장하기]</strong> 버튼을 눌러보세요.</p>
+                    <a href="{% url 'curation:index' %}" class="btn-primary-action" style="max-width: 250px; margin: 1.5rem auto 0; text-decoration:none;">
+                        <i data-lucide="sparkles"></i>
+                        <span>첫 뉴스 브리핑 생성하기</span>
+                    </a>
+                {% endif %}
+            </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

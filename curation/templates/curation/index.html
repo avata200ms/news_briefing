@@ -164,12 +164,19 @@
             </div>
             <h3 class="overview-title" id="overview-comment-text"></h3>
             <div class="overview-actions">
+                <button type="button" class="btn-action-primary" id="save-briefing-btn">
+                    <i data-lucide="bookmark-plus"></i>
+                    <span class="save-btn-text">결과 저장하기</span>
+                </button>
                 <button type="button" class="btn-copy" id="copy-markdown-btn">
                     <i data-lucide="copy"></i> 마크다운 복사
                 </button>
                 <button type="button" class="btn-copy" id="copy-text-btn">
                     <i data-lucide="file-text"></i> 뉴스레터 텍스트 복사
                 </button>
+                <a href="{% url 'curation:history' %}" class="btn-copy" style="text-decoration:none;">
+                    <i data-lucide="history"></i> 히스토리 보기
+                </a>
             </div>
         </div>
 

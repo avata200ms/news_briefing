@@ -21,8 +21,12 @@ cryptography==50.0.1
     # via google-auth
 distro==1.9.0
     # via google-genai
-django==6.1.1
+dj-database-url==3.1.2
     # via news-briefing
+django==6.1.1
+    # via
+    #   dj-database-url
+    #   news-briefing
 google-auth==2.58.0
     # via google-genai
 google-genai==2.22.0
@@ -40,6 +44,8 @@ idna==3.19
     #   anyio
     #   httpx
     #   requests
+psycopg2-binary==2.9.13
+    # via news-briefing
 pyasn1==0.6.4
     # via pyasn1-modules
 pyasn1-modules==0.4.2

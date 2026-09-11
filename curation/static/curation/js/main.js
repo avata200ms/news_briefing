@@ -43,6 +43,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const copyMarkdownBtn = document.getElementById("copy-markdown-btn");
     const copyTextBtn = document.getElementById("copy-text-btn");
+    const saveBriefingBtn = document.getElementById("save-briefing-btn");
     const toastContainer = document.getElementById("toast-container");
 
     let currentResultData = null;
@@ -61,10 +62,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // 2. Toast Notification
-    function showToast(message) {
+    function showToast(message, isError = false) {
+        if (!toastContainer) return;
         const toast = document.createElement("div");
         toast.className = "toast";
-        toast.innerHTML = `<i data-lucide="check-circle" style="color:#10b981; width:18px; height:18px;"></i> <span>${message}</span>`;
+        const icon = isError 
+            ? `<i data-lucide="alert-circle" style="color:#f43f5e; width:18px; height:18px;"></i>` 
+            : `<i data-lucide="check-circle" style="color:#10b981; width:18px; height:18px;"></i>`;
+        toast.innerHTML = `${icon} <span>${message}</span>`;
         toastContainer.appendChild(toast);
         lucide.createIcons();
 
@@ -225,6 +230,13 @@ document.addEventListener("DOMContentLoaded", () => {
         resultKeywordTag.textContent = `키워드: ${data.keyword}`;
         resultCountTag.textContent = `20개 기사 중 3건 엄선`;
 
+        // Save Button Reset
+        if (saveBriefingBtn) {
+            saveBriefingBtn.disabled = false;
+            saveBriefingBtn.classList.remove("saved");
+            saveBriefingBtn.innerHTML = `<i data-lucide="bookmark-plus"></i> <span class="save-btn-text">결과 저장하기</span>`;
+        }
+
         // Curated Top 3 Cards
         curatedCardsGrid.innerHTML = "";
         data.curated_articles.forEach((article, index) => {
@@ -313,57 +325,203 @@ document.addEventListener("DOMContentLoaded", () => {
         lucide.createIcons();
     }
 
-    // 10. Copy Markdown Handler
-    copyMarkdownBtn.addEventListener("click", () => {
-        if (!currentResultData) return;
-        const d = currentResultData;
-        let md = `# 📰 AI 뉴스 큐레이션 브리핑: ${d.keyword}\n\n`;
-        md += `> **총평**: ${d.overview_comment}\n\n`;
-        md += `* **필터링 조건**: ${d.filter_prompt}\n`;
-        md += `* **분석 대상**: 네이버 검색 20개 기사 중 핵심 3건 선별\n\n---\n\n`;
-
-        d.curated_articles.forEach((art, idx) => {
-            md += `### [AI PICK #${idx + 1}] [${art.title}](${art.url})\n`;
-            md += `- **발행일**: ${art.pub_date}\n`;
-            md += `- **선정 이유**: ${art.selection_reason}\n\n`;
-            md += `**📌 핵심 요약 3줄**:\n`;
-            art.summary_bullets.forEach(b => {
-                md += `  * ${b}\n`;
-            });
-            md += `\n**💡 비즈니스 인사이트**:\n> ${art.insight}\n\n`;
-            if (art.tags && art.tags.length > 0) {
-                md += `*태그: ${art.tags.map(t => `#${t}`).join(" ")}*\n\n`;
+    // 10. Save Briefing Handler
+    if (saveBriefingBtn) {
+        saveBriefingBtn.addEventListener("click", async () => {
+            if (!currentResultData) {
+                showToast("저장할 요약 결과가 없습니다.", true);
+                return;
             }
-            md += `---\n\n`;
-        });
 
-        navigator.clipboard.writeText(md).then(() => {
-            showToast("마크다운 포맷이 클립보드에 복사되었습니다!");
+            saveBriefingBtn.disabled = true;
+            saveBriefingBtn.innerHTML = `<div class="spinner" style="width:14px; height:14px; border-width:2px; display:inline-block;"></div> <span>저장 중...</span>`;
+
+            try {
+                const response = await fetch("/api/save/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCsrfToken(),
+                    },
+                    body: JSON.stringify({
+                        keyword: currentResultData.keyword,
+                        filter_prompt: currentResultData.filter_prompt,
+                        overview_comment: currentResultData.overview_comment,
+                        curated_articles: currentResultData.curated_articles,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    saveBriefingBtn.classList.add("saved");
+                    saveBriefingBtn.innerHTML = `<i data-lucide="check"></i> <span>저장 완료됨</span>`;
+                    lucide.createIcons();
+                    showToast("🎉 뉴스 요약 결과가 DB에 저장되었습니다!");
+                } else {
+                    saveBriefingBtn.disabled = false;
+                    saveBriefingBtn.innerHTML = `<i data-lucide="bookmark-plus"></i> <span class="save-btn-text">결과 저장하기</span>`;
+                    lucide.createIcons();
+                    showToast(data.error || "저장에 실패했습니다.", true);
+                }
+            } catch (err) {
+                saveBriefingBtn.disabled = false;
+                saveBriefingBtn.innerHTML = `<i data-lucide="bookmark-plus"></i> <span class="save-btn-text">결과 저장하기</span>`;
+                lucide.createIcons();
+                showToast("통신 오류가 발생했습니다: " + err.message, true);
+            }
+        });
+    }
+
+    // 11. Copy Markdown Handler
+    if (copyMarkdownBtn) {
+        copyMarkdownBtn.addEventListener("click", () => {
+            if (!currentResultData) return;
+            const d = currentResultData;
+            let md = `# 📰 AI 뉴스 큐레이션 브리핑: ${d.keyword}\n\n`;
+            md += `> **총평**: ${d.overview_comment}\n\n`;
+            md += `* **필터링 조건**: ${d.filter_prompt}\n`;
+            md += `* **분석 대상**: 네이버 검색 20개 기사 중 핵심 3건 선별\n\n---\n\n`;
+
+            d.curated_articles.forEach((art, idx) => {
+                md += `### [AI PICK #${idx + 1}] [${art.title}](${art.url})\n`;
+                md += `- **발행일**: ${art.pub_date}\n`;
+                md += `- **선정 이유**: ${art.selection_reason}\n\n`;
+                md += `**📌 핵심 요약 3줄**:\n`;
+                art.summary_bullets.forEach(b => {
+                    md += `  * ${b}\n`;
+                });
+                md += `\n**💡 비즈니스 인사이트**:\n> ${art.insight}\n\n`;
+                if (art.tags && art.tags.length > 0) {
+                    md += `*태그: ${art.tags.map(t => `#${t}`).join(" ")}*\n\n`;
+                }
+                md += `---\n\n`;
+            });
+
+            navigator.clipboard.writeText(md).then(() => {
+                showToast("마크다운 포맷이 클립보드에 복사되었습니다!");
+            });
+        });
+    }
+
+    // 12. Copy Newsletter Text Handler
+    if (copyTextBtn) {
+        copyTextBtn.addEventListener("click", () => {
+            if (!currentResultData) return;
+            const d = currentResultData;
+            let txt = `[📰 AI 뉴스 브리핑 - ${d.keyword}]\n\n`;
+            txt += `💬 브리핑 요약: ${d.overview_comment}\n\n`;
+            txt += `========================================\n\n`;
+
+            d.curated_articles.forEach((art, idx) => {
+                txt += `[#${idx + 1}] ${art.title}\n`;
+                txt += `🔗 링크: ${art.url}\n`;
+                txt += `🎯 선정 이유: ${art.selection_reason}\n\n`;
+                txt += `[핵심 3줄 요약]\n`;
+                art.summary_bullets.forEach(b => {
+                    txt += `• ${b}\n`;
+                });
+                txt += `\n[인사이트]\n👉 ${art.insight}\n\n`;
+                txt += `----------------------------------------\n\n`;
+            });
+
+            navigator.clipboard.writeText(txt).then(() => {
+                showToast("뉴스레터 텍스트가 클립보드에 복사되었습니다!");
+            });
+        });
+    }
+
+    // 13. History Page: Delete Briefing
+    document.querySelectorAll(".btn-delete-briefing").forEach(btn => {
+        btn.addEventListener("click", async (e) => {
+            const briefingId = btn.getAttribute("data-id");
+            const keyword = btn.getAttribute("data-keyword");
+            
+            if (!confirm(`'${keyword}' 뉴스 브리핑 저장 기록을 정말 삭제하시겠습니까?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/history/${briefingId}/delete/`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": getCsrfToken(),
+                    },
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const card = document.getElementById(`briefing-card-${briefingId}`);
+                    if (card) {
+                        card.style.opacity = "0";
+                        card.style.transform = "scale(0.95)";
+                        card.style.transition = "all 0.3s ease";
+                        setTimeout(() => {
+                            card.remove();
+                            // If all removed, refresh
+                            const remaining = document.querySelectorAll(".briefing-history-card");
+                            if (remaining.length === 0) {
+                                location.reload();
+                            }
+                        }, 300);
+                    }
+                    showToast(data.message || "삭제되었습니다.");
+                } else {
+                    showToast(data.error || "삭제에 실패했습니다.", true);
+                }
+            } catch (err) {
+                showToast("삭제 중 통신 오류가 발생했습니다: " + err.message, true);
+            }
         });
     });
 
-    // 11. Copy Newsletter Text Handler
-    copyTextBtn.addEventListener("click", () => {
-        if (!currentResultData) return;
-        const d = currentResultData;
-        let txt = `[📰 AI 뉴스 브리핑 - ${d.keyword}]\n\n`;
-        txt += `💬 브리핑 요약: ${d.overview_comment}\n\n`;
-        txt += `========================================\n\n`;
+    // 14. History Page: Copy Markdown for a Card
+    document.querySelectorAll(".copy-briefing-md-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const briefingId = btn.getAttribute("data-id");
+            const card = document.getElementById(`briefing-card-${briefingId}`);
+            if (!card) return;
 
-        d.curated_articles.forEach((art, idx) => {
-            txt += `[#${idx + 1}] ${art.title}\n`;
-            txt += `🔗 링크: ${art.url}\n`;
-            txt += `🎯 선정 이유: ${art.selection_reason}\n\n`;
-            txt += `[핵심 3줄 요약]\n`;
-            art.summary_bullets.forEach(b => {
-                txt += `• ${b}\n`;
+            const keyword = card.querySelector(".bcard-keyword")?.textContent.trim() || "";
+            const date = card.querySelector(".bcard-date")?.textContent.trim() || "";
+            const filter = card.querySelector(".bcard-filter-text")?.textContent.trim() || "";
+            const overview = card.querySelector(".bcard-overview-text")?.textContent.trim() || "";
+
+            let md = `# 📰 AI 뉴스 큐레이션 브리핑: ${keyword}\n\n`;
+            md += `> **저장일시**: ${date}\n`;
+            md += `> **총평**: ${overview}\n`;
+            md += `> **선별 기준**: ${filter}\n\n---\n\n`;
+
+            card.querySelectorAll(".history-article-card").forEach((artCard, idx) => {
+                const titleElem = artCard.querySelector(".h-card-title a");
+                const title = titleElem?.textContent.trim() || "";
+                const url = titleElem?.getAttribute("href") || "";
+                const pubDate = artCard.querySelector(".h-card-date")?.textContent.trim() || "";
+                const reason = artCard.querySelector(".h-reason-box .h-box-text")?.textContent.trim() || "";
+                const insight = artCard.querySelector(".h-insight-box .h-insight-text")?.textContent.trim() || "";
+                
+                const bullets = [];
+                artCard.querySelectorAll(".h-bullets-list li").forEach(li => {
+                    bullets.push(li.textContent.trim());
+                });
+
+                md += `### [AI PICK #${idx + 1}] [${title}](${url})\n`;
+                if (pubDate) md += `- **발행일**: ${pubDate}\n`;
+                if (reason) md += `- **선정 이유**: ${reason}\n\n`;
+                if (bullets.length > 0) {
+                    md += `**📌 핵심 요약 3줄**:\n`;
+                    bullets.forEach(b => {
+                        md += `  * ${b}\n`;
+                    });
+                }
+                if (insight) md += `\n**💡 비즈니스 인사이트**:\n> ${insight}\n\n`;
+                md += `---\n\n`;
             });
-            txt += `\n[인사이트]\n👉 ${art.insight}\n\n`;
-            txt += `----------------------------------------\n\n`;
-        });
 
-        navigator.clipboard.writeText(txt).then(() => {
-            showToast("뉴스레터 텍스트가 클립보드에 복사되었습니다!");
+            navigator.clipboard.writeText(md).then(() => {
+                showToast("브리핑 마크다운이 클립보드에 복사되었습니다!");
+            });
         });
     });
 
@@ -378,3 +536,4 @@ document.addEventListener("DOMContentLoaded", () => {
             .replace(/'/g, "&#039;");
     }
 });
+

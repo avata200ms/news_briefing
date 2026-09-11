@@ -29,20 +29,32 @@
     <header class="app-header">
         <div class="header-container">
             <div class="brand-logo">
-                <div class="logo-icon">
-                    <i data-lucide="sparkles"></i>
-                </div>
-                <div class="brand-text">
-                    <h1>News Briefing <span class="ai-badge">AI</span></h1>
-                    <p class="brand-subtitle">지능형 뉴스 큐레이션 & 브리핑</p>
-                </div>
+                <a href="{% url 'curation:index' %}" class="logo-link">
+                    <div class="logo-icon">
+                        <i data-lucide="sparkles"></i>
+                    </div>
+                    <div class="brand-text">
+                        <h1>News Briefing <span class="ai-badge">AI</span></h1>
+                        <p class="brand-subtitle">지능형 뉴스 큐레이션 & 브리핑</p>
+                    </div>
+                </a>
             </div>
+            <nav class="header-nav">
+                <a href="{% url 'curation:index' %}" class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>뉴스 큐레이션</span>
+                </a>
+                <a href="{% url 'curation:history' %}" class="nav-link {% if request.resolver_match.url_name == 'history' %}active{% endif %}">
+                    <i data-lucide="bookmark-check"></i>
+                    <span>나의 요약 히스토리</span>
+                </a>
+            </nav>
             <div class="header-badges">
                 <span class="tech-pill naver-pill">
-                    <span class="status-dot"></span> Naver News Search
+                    <span class="status-dot"></span> Naver Search
                 </span>
                 <span class="tech-pill gemini-pill">
-                    <span class="status-dot green"></span> Gemini 2.5 Flash
+                    <span class="status-dot green"></span> Gemini AI
                 </span>
             </div>
         </div>
