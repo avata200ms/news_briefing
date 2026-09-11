@@ -87,7 +87,12 @@ def curate_and_summarize_news(
 }}
 """
 
-    models_to_try = ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.0-flash"]
+    models_to_try = [
+        "gemini-3-flash-preview",
+        "gemini-flash-lite-latest",
+        "gemini-3.6-flash",
+        "gemini-flash-latest",
+    ]
     last_err = None
 
     for model_name in models_to_try:
