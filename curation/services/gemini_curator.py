@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+
 from django.conf import settings
 from dotenv import load_dotenv
 from google import genai
@@ -128,7 +129,7 @@ def curate_and_summarize_news(
                 "curated_articles": curated_list,
             }
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             last_err = e
             continue
 

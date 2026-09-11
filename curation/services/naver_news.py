@@ -3,9 +3,10 @@
 import email.utils
 import html
 import os
-from pathlib import Path
 import re
+from pathlib import Path
 from typing import Any
+
 import requests
 from django.conf import settings
 from dotenv import load_dotenv
